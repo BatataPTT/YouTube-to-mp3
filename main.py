@@ -1,9 +1,9 @@
-from flask import Flask, request, render_template, send_file, after_this_request
+from flask import Flask, request, render_template, send_file
 import yt_dlp
 import os
 import uuid
 import tempfile
-from threading import Thread
+import logging
 
 app = Flask(__name__)
 
@@ -19,6 +19,7 @@ def baixar_video(link, filename):
             'preferredquality': '192',
         }],
         'quiet': True,
+        'noplaylist': True,
     }
     with yt_dlp.YoutubeDL(opcoes) as ydl:
         ydl.download([link])
@@ -33,20 +34,19 @@ def homepage():
         video_id = str(uuid.uuid4())
         temp_path = os.path.join(TEMP_DIR, f"{video_id}.mp3")
 
-        baixar_video(link, temp_path)
+        try:
+            baixar_video(link, temp_path)
+        except Exception as e:
+            app.logger.error(f"Erro ao baixar o vídeo: {e}")
+            return f"Erro ao baixar o vídeo: {e}", 500
 
         if os.path.exists(temp_path):
-            @after_this_request
-            def cleanup(response):
-                try:
-                    os.remove(temp_path)
-                except Exception as e:
-                    app.logger.warning(f"Falha ao remover arquivo temporário: {e}")
-                return response
-
             return send_file(temp_path, as_attachment=True, download_name="video.mp3")
+        else:
+            return "Falha ao localizar o arquivo baixado", 500
 
     return render_template('page.html')
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     app.run(debug=True)
