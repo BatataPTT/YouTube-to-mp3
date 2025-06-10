@@ -1,13 +1,13 @@
-from flask import Flask, request, render_template, send_file
+from flask import Flask, request, render_template, send_file, after_this_request
 import yt_dlp
 import os
 import uuid
-import tempfile
-import logging
+from threading import Thread
 
 app = Flask(__name__)
 
-TEMP_DIR = tempfile.gettempdir()
+TEMP_DIR = os.path.join(os.path.dirname(__file__), 'temp')
+os.makedirs(TEMP_DIR, exist_ok=True)
 
 def baixar_video(link, filename):
     opcoes = {
@@ -19,7 +19,6 @@ def baixar_video(link, filename):
             'preferredquality': '192',
         }],
         'quiet': True,
-        'noplaylist': True,
     }
     with yt_dlp.YoutubeDL(opcoes) as ydl:
         ydl.download([link])
@@ -36,17 +35,25 @@ def homepage():
 
         try:
             baixar_video(link, temp_path)
-        except Exception as e:
-            app.logger.error(f"Erro ao baixar o vídeo: {e}")
-            return f"Erro ao baixar o vídeo: {e}", 500
 
-        if os.path.exists(temp_path):
-            return send_file(temp_path, as_attachment=True, download_name="video.mp3")
-        else:
-            return "Falha ao localizar o arquivo baixado", 500
+            if os.path.exists(temp_path):
+                @after_this_request
+                def cleanup(response):
+                    try:
+                        os.remove(temp_path)
+                    except Exception as e:
+                        print(f"Erro ao remover: {e}")
+                    return response
+
+                return send_file(temp_path, as_attachment=True, download_name="video.mp3")
+            else:
+                return "Falha ao baixar o vídeo", 500
+
+        except Exception as e:
+            print("Erro:", e)
+            return "Erro durante o download", 500
 
     return render_template('page.html')
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
     app.run(debug=True)
