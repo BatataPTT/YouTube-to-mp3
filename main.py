@@ -12,7 +12,6 @@ def homepage():
             msg = "Baixando..."
             opcoes = {
                 'outtmpl': 'Download/yt-to-mp3/%(title)s.mp3'
-                'cookiefile': 'cookies.txt'
             }
             with yt_dlp.YoutubeDL(opcoes) as ydl:
                 ydl.download([link])
